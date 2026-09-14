@@ -1,0 +1,163 @@
+{
+    "sections": [
+        {
+            "title": "Yandex-Lyrics",
+            "items": [
+                {
+                    "id": "enabled",
+                    "name": "Включить аддон",
+                    "description": "Полноэкранная караоке-лирика поверх плеера.",
+                    "type": "button",
+                    "bool": true,
+                    "defaultParameter": true
+                },
+                {
+                    "id": "showFloatingButton",
+                    "name": "Плавающая кнопка",
+                    "description": "Кнопка открытия текста поверх интерфейса. Её можно перетащить, зажав левой кнопкой мыши.",
+                    "type": "button",
+                    "bool": true,
+                    "defaultParameter": true
+                },
+                {
+                    "id": "hotkey",
+                    "name": "Горячая клавиша",
+                    "description": "Клавиша открытия и закрытия оверлея лирики.",
+                    "type": "selector",
+                    "selected": "KeyL",
+                    "options": [
+                        {
+                            "name": "L",
+                            "id": "KeyL"
+                        },
+                        {
+                            "name": "K",
+                            "id": "KeyK"
+                        },
+                        {
+                            "name": "Y",
+                            "id": "KeyY"
+                        },
+                        {
+                            "name": "\\",
+                            "id": "Backslash"
+                        }
+                    ],
+                    "defaultParameter": "KeyL"
+                }
+            ]
+        },
+        {
+            "title": "Оформление",
+            "items": [
+                {
+                    "id": "backgroundMode",
+                    "name": "Фон",
+                    "description": "Динамический фон строится из обложки трека.",
+                    "type": "selector",
+                    "selected": "dynamic",
+                    "options": [
+                        {
+                            "name": "Динамический из обложки",
+                            "id": "dynamic"
+                        },
+                        {
+                            "name": "Статичная обложка",
+                            "id": "static"
+                        },
+                        {
+                            "name": "Выключен",
+                            "id": "off"
+                        }
+                    ],
+                    "defaultParameter": "dynamic"
+                },
+                {
+                    "id": "backgroundBlur",
+                    "name": "Размытие фона",
+                    "description": "Размытие подложки, px.",
+                    "type": "slider",
+                    "min": 0,
+                    "max": 160,
+                    "step": 5,
+                    "defaultParameter": 90
+                },
+                {
+                    "id": "gradientDegrees",
+                    "name": "Наклон подсветки",
+                    "description": "Угол градиента караоке, градусы.",
+                    "type": "slider",
+                    "min": 0,
+                    "max": 180,
+                    "step": 5,
+                    "defaultParameter": 90
+                },
+                {
+                    "id": "useSystemFont",
+                    "name": "Системный шрифт",
+                    "description": "Не использовать шрифт Яндекс Музыки в тексте песни.",
+                    "type": "button",
+                    "bool": false,
+                    "defaultParameter": false
+                },
+                {
+                    "id": "controlsPosition",
+                    "name": "Панель управления",
+                    "description": "Где расположить кнопки в оверлее.",
+                    "type": "selector",
+                    "selected": "bottom",
+                    "options": [
+                        {
+                            "name": "Снизу",
+                            "id": "bottom"
+                        },
+                        {
+                            "name": "Сверху",
+                            "id": "top"
+                        }
+                    ],
+                    "defaultParameter": "bottom"
+                }
+            ]
+        },
+        {
+            "title": "Подсветка",
+            "items": [
+                {
+                    "id": "wordSync",
+                    "name": "Пословная подсветка",
+                    "description": "Слова загораются по очереди, по мере пения. Выключено — строка загорается целиком.",
+                    "type": "button",
+                    "bool": true,
+                    "defaultParameter": true
+                },
+                {
+                    "id": "blurInactive",
+                    "name": "Размытие неактивных строк",
+                    "description": "Размывать строки тем сильнее, чем дальше они от текущей.",
+                    "type": "button",
+                    "bool": true,
+                    "defaultParameter": true
+                },
+                {
+                    "id": "lineHoverBackground",
+                    "name": "Плашка при наведении",
+                    "description": "Подсвечивать строку под курсором.",
+                    "type": "button",
+                    "bool": true,
+                    "defaultParameter": true
+                },
+                {
+                    "id": "offsetMs",
+                    "name": "Сдвиг синхронизации",
+                    "description": "Сдвиг текста относительно музыки, мс. Отрицательное — текст раньше.",
+                    "type": "slider",
+                    "min": -5000,
+                    "max": 5000,
+                    "step": 50,
+                    "defaultParameter": 0
+                }
+            ]
+        }
+    ]
+}

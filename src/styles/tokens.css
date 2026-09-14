@@ -1,0 +1,52 @@
+/**
+ * Дизайн-токены аддона.
+ *
+ * «Стеклянные» плашки, белый текст с переменной прозрачностью и плавные
+ * пружинные переходы.
+ */
+
+:root {
+    --yl-color-text-primary: hsla(0, 0%, 100%, 0.92);
+    --yl-color-text-secondary: hsla(0, 0%, 100%, 0.6);
+    --yl-color-text-tertiary: hsla(0, 0%, 100%, 0.35);
+
+    --yl-material-bg: rgba(0, 0, 0, 0.1);
+    --yl-material-filter: blur(12px) saturate(1.6) brightness(1.05);
+    --yl-material-bg-strong: rgba(0, 0, 0, 0.28);
+    --yl-material-filter-strong: blur(18px) saturate(1.7) brightness(1.06);
+
+    --yl-radius-sm: 8px;
+    --yl-radius-md: 12px;
+    --yl-radius-lg: 16px;
+    --yl-radius-pill: 999px;
+
+    --yl-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --yl-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --yl-ease-line: cubic-bezier(0.37, 0, 0.63, 1);
+
+    --yl-dur-fast: 0.15s;
+    --yl-dur-base: 0.25s;
+    --yl-dur-slow: 0.4s;
+    /*
+     * Волна пословной подсветки. Переходы намеренно несимметричны: слово
+     * вспыхивает быстро, а гаснет медленно и с задержкой в начале — свет как
+     * будто перетекает в следующее слово, а не гаснет на месте.
+     */
+    --yl-dur-word-attack: 0.22s;
+    --yl-dur-word-decay: 0.7s;
+    /* Затухание держится у яркого значения и только потом падает: это и есть «хвост». */
+    --yl-ease-word-decay: cubic-bezier(0.55, 0, 0.85, 0.35);
+
+    /* Крупный размер строки лирики; переопределяется на корне оверлея. */
+    --yl-lyrics-size: clamp(1.6rem, 3.4cqw, 3rem);
+    --yl-line-height: 1.2;
+    --yl-line-gap: 1cqw;
+}
+
+/*
+ * Цвет караоке-подсветки. По умолчанию белый; аддон переопределяет его на
+ * корне оверлея средним цветом обложки, когда фон включён.
+ */
+#yl-overlay {
+    --yl-highlight: #fff;
+}

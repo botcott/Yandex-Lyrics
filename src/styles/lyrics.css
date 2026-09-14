@@ -1,0 +1,711 @@
+/**
+ * Полноэкранный слой лирики.
+ *
+ * Ядро визуала — градиент, «протекающий» сквозь текст:
+ * `background-clip: text` + прозрачная заливка, а прогресс караоке выражен
+ * позицией градиента (`--yl-gradient-position`). Анимировать `background-image`
+ * напрямую нельзя, поэтому двигается именно позиция.
+ */
+
+#yl-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: block;
+    container-type: size;
+    font-family: var(--yl-font-family, 'Yandex Sans Text', 'Inter', system-ui, sans-serif);
+    color: var(--yl-color-text-primary);
+    user-select: none;
+    opacity: 1;
+    transition: opacity var(--yl-dur-base) var(--yl-ease-standard);
+}
+
+#yl-overlay[hidden] {
+    display: none;
+}
+
+/* Появление/уход оверлея */
+#yl-overlay.yl-entering {
+    opacity: 0;
+}
+
+#yl-overlay.yl-leaving {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ─────────────────────────── Фон ─────────────────────────── */
+
+.yl-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: #0a0a0c;
+}
+
+.yl-bg-canvas {
+    position: absolute;
+    /* Запас по краям: сильное размытие разъедает границы и без него по краям
+       экрана проступает тёмная рамка. */
+    inset: -22%;
+    width: 144%;
+    height: 144%;
+    filter: blur(calc(var(--yl-static-blur, 90px) * 0.6)) saturate(2.2) brightness(0.62);
+    transition: opacity 1s var(--yl-ease-standard);
+    animation: yl-bg-drift 48s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+/* Медленный дрейф: фон «дышит», не отвлекая от текста. */
+@keyframes yl-bg-drift {
+    0% {
+        transform: scale(1.06) translate3d(-1%, 1%, 0) rotate(-1.2deg);
+    }
+    50% {
+        transform: scale(1.18) translate3d(1.5%, -2%, 0) rotate(1.4deg);
+    }
+    100% {
+        transform: scale(1.08) translate3d(2%, 1.5%, 0) rotate(-0.8deg);
+    }
+}
+
+/* На паузе фон замирает — движение без музыки выглядит странно. */
+#yl-overlay[data-playing='false'] .yl-bg-canvas {
+    animation-play-state: paused;
+}
+
+/* Статичный фолбэк, если canvas недоступен или фон отключён */
+.yl-bg-image {
+    position: absolute;
+    inset: -25%;
+    width: 150%;
+    height: 150%;
+    background-position: center;
+    background-size: cover;
+    filter: blur(var(--yl-static-blur, 90px)) saturate(1.8) brightness(0.55);
+    transition: opacity 0.85s var(--yl-ease-standard);
+}
+
+/* Затемнение по краям: держит текст читаемым на светлых обложках */
+.yl-bg-scrim {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.55) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.1) 30%, rgba(0, 0, 0, 0.6) 100%);
+    pointer-events: none;
+}
+
+.yl-bg[data-mode='off'] .yl-bg-canvas,
+.yl-bg[data-mode='off'] .yl-bg-image {
+    opacity: 0;
+}
+
+/* ─────────────────────────── Сцена лирики ─────────────────────────── */
+
+.yl-stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.yl-scroll {
+    position: relative;
+    width: min(100%, 74cqw);
+    height: 100%;
+    overflow: hidden;
+    /* Растворение строк у верхней и нижней кромки вместо жёсткого обреза */
+    mask-image: linear-gradient(
+        180deg,
+        transparent 0,
+        rgba(0, 0, 0, 0.35) 8%,
+        #000 22%,
+        #000 78%,
+        rgba(0, 0, 0, 0.35) 92%,
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+        180deg,
+        transparent 0,
+        rgba(0, 0, 0, 0.35) 8%,
+        #000 22%,
+        #000 78%,
+        rgba(0, 0, 0, 0.35) 92%,
+        transparent 100%
+    );
+}
+
+.yl-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 50cqh 0;
+    will-change: transform;
+}
+
+.yl-lines.yl-instant {
+    transition: none !important;
+}
+
+/* ─────────────────────────── Строка ─────────────────────────── */
+
+.yl-line {
+    --yl-gradient-position: -20%;
+    /* Насколько тусклый ещё не спетый текст. Меньше — темнее. */
+    --yl-gradient-alpha-end: 0.15;
+    --yl-gradient-degrees: 90deg;
+    --yl-blur-amount: 0px;
+    --yl-notsung-opacity: 0.34;
+    /*
+     * Прозрачность слова в пословной подсветке. Слово красится в полный цвет
+     * обводки, а яркость набирается прозрачностью: `opacity` анимируется
+     * надёжно, тогда как переход по `-webkit-text-fill-color` не давал
+     * видимой анимации — слово просто появлялось.
+     */
+    --yl-word-alpha-sung: 0.48;
+    --yl-word-alpha-unsung: var(--yl-gradient-alpha-end);
+    /* Уже спетое — заметно темнее того, что поётся сейчас: ярким должен
+       оставаться только ведущий край, иначе подсветка читается слабо. */
+    --yl-sung-color: color-mix(
+        in srgb,
+        var(--yl-highlight) calc(var(--yl-word-alpha-sung) * 100%),
+        transparent
+    );
+    /* Ещё не спетое — самое тёмное. */
+    --yl-unsung-color: color-mix(
+        in srgb,
+        var(--yl-highlight) calc(var(--yl-word-alpha-unsung) * 100%),
+        transparent
+    );
+
+    position: relative;
+    display: block;
+    width: 100%;
+    margin-bottom: var(--yl-line-gap);
+    padding: 0.18em 0.35em;
+    border-radius: var(--yl-radius-lg);
+    font-size: var(--yl-lyrics-size);
+    font-weight: 700;
+    line-height: var(--yl-line-height);
+    letter-spacing: -0.01em;
+    text-align: left;
+    text-wrap: balance;
+    cursor: pointer;
+
+    background-image: linear-gradient(
+        var(--yl-gradient-degrees),
+        var(--yl-sung-color) calc(var(--yl-gradient-position) - 10%),
+        var(--yl-highlight) var(--yl-gradient-position),
+        var(--yl-unsung-color) calc(var(--yl-gradient-position) + 22%)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+
+    filter: blur(var(--yl-blur-amount));
+    opacity: var(--yl-notsung-opacity);
+    transform-origin: left center;
+    scale: 0.96;
+    transition: opacity var(--yl-dur-base) var(--yl-ease-line), scale var(--yl-dur-base) var(--yl-ease-line),
+        filter 0.18s linear;
+}
+
+/*
+ * Слово внутри строки.
+ *
+ * Яркость набирается прозрачностью, а не цветом: слово всегда выкрашено в
+ * полный цвет обводки, меняется только его `opacity`. Переход по
+ * `-webkit-text-fill-color` видимой анимации не давал — слово просто
+ * появлялось, — а `opacity` анимируется надёжно и даёт плавное перетекание.
+ */
+.yl-word {
+    display: inline;
+    white-space: pre-wrap;
+    /* Длинное слово, перенесённое на другую строку, красится целиком в каждом
+       фрагменте, а не одним общим блоком. */
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
+/*
+ * Пословная подсветка.
+ *
+ * Красится само слово, а не доля букв внутри него: у градиента была обратная
+ * задача — он вёл яркую полосу по буквам, из-за чего «спел» и «поётся» почти
+ * не различались. Здесь три состояния разведены по яркости: спетое слово
+ * темнее ещё не спетого, а самое яркое — то, что звучит сейчас.
+ *
+ * Волна получается из несимметричных переходов. Слово вспыхивает быстро
+ * (атака), а гаснет медленно и с задержкой в начале (затухание): пока новое
+ * слово разгорается, предыдущее ещё держит свет, и яркое пятно не разрывается
+ * между ними, а тянется. Свечение догорает медленнее самой яркости, поэтому
+ * «хвост» у света длиннее, чем сама вспышка — это и читается как перетекание.
+ *
+ * Градиент строки при этом выключается: он закрашивал бы прозрачные буквы
+ * слов своей полосой и путал бы цвета.
+ */
+.yl-lines[data-word-sync='true'][data-synced='true'] .yl-line {
+    background-image: none;
+    /* Текст, не попавший ни в одно слово (пробелы, знаки между словами),
+       остаётся приглушённым: яркость набирают именно слова. */
+    -webkit-text-fill-color: var(--yl-unsung-color);
+    color: var(--yl-unsung-color);
+}
+
+.yl-lines[data-word-sync='true'][data-synced='true'] .yl-word {
+    -webkit-text-fill-color: var(--yl-highlight);
+    color: var(--yl-highlight);
+    opacity: var(--yl-word-alpha-unsung);
+    transition: opacity var(--yl-dur-word-attack) var(--yl-ease-standard),
+        text-shadow var(--yl-dur-word-attack) var(--yl-ease-standard);
+}
+
+/* Допето: свет уходит медленно и хвостом догоняет следующее слово. */
+.yl-lines[data-word-sync='true'][data-synced='true'] .yl-word.yl-sung {
+    opacity: var(--yl-word-alpha-sung);
+    transition-duration: var(--yl-dur-word-decay);
+    transition-timing-function: var(--yl-ease-word-decay);
+}
+
+/* Звучит сейчас: вспышка короткая, чтобы свет не отставал от музыки. */
+.yl-lines[data-word-sync='true'][data-synced='true'] .yl-word.yl-active {
+    opacity: 1;
+    transition-duration: var(--yl-dur-word-attack);
+    transition-timing-function: var(--yl-ease-standard);
+    text-shadow: 0 0 14px color-mix(in srgb, var(--yl-highlight) 55%, transparent),
+        0 0 38px color-mix(in srgb, var(--yl-highlight) 28%, transparent);
+}
+
+/* Строка ещё не спета */
+.yl-line.yl-notsung {
+    --yl-gradient-position: -20%;
+    opacity: var(--yl-notsung-opacity);
+}
+
+/* Строка звучит сейчас */
+.yl-line.yl-active {
+    /* Полностью спета — в режиме без пословной подсветки строка загорается
+       целиком, а не полосой слева направо. */
+    --yl-gradient-position: 130%;
+    opacity: 1;
+    --yl-blur-amount: 0px !important;
+    scale: 1;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.3), 0 0 34px rgba(255, 255, 255, 0.16);
+}
+
+/* Строка уже спета. Намеренно не отличается от ещё не спетой: единственное
+   яркое место на экране — то, что звучит сейчас, всё остальное одинаково
+   тёмное. Так взгляд не цепляется за пройденный текст. */
+.yl-line.yl-sung {
+    --yl-gradient-position: -20%;
+    opacity: var(--yl-notsung-opacity);
+}
+
+/*
+ * Без пословной подсветки строка загорается целиком. Заливка сплошная, а не
+ * градиент: у градиента цвет у края — приглушённый «спетый», из-за чего
+ * разница с пословным режимом почти не читалась.
+ */
+.yl-lines[data-word-sync='false'] .yl-line.yl-active {
+    background-image: none;
+    -webkit-text-fill-color: var(--yl-highlight);
+    color: var(--yl-highlight);
+}
+
+/* Подсветка строки под курсором */
+.yl-line::before {
+    content: '';
+    position: absolute;
+    inset: -0.05em -0.35em;
+    z-index: -1;
+    border-radius: var(--yl-radius-lg);
+    background-color: rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    scale: 0.9;
+    transition: opacity var(--yl-dur-base) var(--yl-ease-standard), scale 0.4s var(--yl-ease-out-back);
+}
+
+.yl-line:hover::before {
+    opacity: 1;
+    scale: 1;
+}
+
+.yl-line:hover {
+    opacity: 1;
+}
+
+#yl-overlay[data-hover-bg='false'] .yl-line::before {
+    display: none;
+}
+
+/* Инструментальные вставки — три пульсирующие точки */
+.yl-line.yl-musical {
+    --yl-notsung-opacity: 0.28;
+    letter-spacing: 0.4em;
+    font-size: calc(var(--yl-lyrics-size) * 0.9);
+}
+
+.yl-line.yl-musical.yl-active {
+    animation: yl-dot-pulse 1.35s var(--yl-ease-standard) infinite;
+}
+
+@keyframes yl-dot-pulse {
+    0%,
+    100% {
+        opacity: 0.55;
+        scale: 0.97;
+    }
+    50% {
+        opacity: 1;
+        scale: 1.03;
+    }
+}
+
+/* Фоновый вокал / подпевка */
+.yl-line.yl-bg-vocal {
+    font-size: calc(var(--yl-lyrics-size) * 0.72);
+    font-style: italic;
+    opacity: 0.42;
+}
+
+/* Дуэтные строки — отступ с противоположной стороны */
+.yl-line.yl-opposite {
+    margin-left: var(--yl-duet-inset, 8cqw);
+}
+
+/* ─────────────────────────────  Шапка и подвал  ───────────────────────────── */
+
+.yl-header {
+    position: absolute;
+    top: 3.5cqh;
+    left: 50%;
+    translate: -50% 0;
+    max-width: 70cqw;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--yl-dur-slow) var(--yl-ease-standard);
+}
+
+.yl-header.yl-visible {
+    opacity: 1;
+}
+
+.yl-track-title {
+    font-size: clamp(0.95rem, 1.4cqw, 1.4rem);
+    font-weight: 700;
+    color: var(--yl-color-text-primary);
+}
+
+.yl-track-artist {
+    font-size: clamp(0.8rem, 1.1cqw, 1.1rem);
+    color: var(--yl-color-text-secondary);
+    margin-top: 0.15em;
+}
+
+.yl-notice {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: min(80cqw, 700px);
+    text-align: center;
+    font-size: clamp(1.1rem, 2cqw, 1.8rem);
+    font-weight: 600;
+    color: var(--yl-color-text-secondary);
+    line-height: 1.4;
+}
+
+.yl-notice-title {
+    color: var(--yl-color-text-primary);
+    margin-bottom: 0.4em;
+}
+
+.yl-notice-hint {
+    font-size: 0.7em;
+    color: var(--yl-color-text-tertiary);
+    margin-top: 0.6em;
+}
+
+/*
+ * Подпись под последней строкой. Это нижняя граница прокрутки, поэтому она
+ * намеренно не похожа на строку текста: не кликается, не подсвечивается,
+ * набрана мелко и в третьем цвете.
+ */
+.yl-credits {
+    margin-top: calc(var(--yl-line-gap) * 2.5);
+    padding: 0 0.35em;
+    text-align: center;
+    font-size: calc(var(--yl-lyrics-size) * 0.55);
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0;
+    color: var(--yl-color-text-tertiary);
+    cursor: default;
+    opacity: 0.75;
+}
+
+.yl-credits[hidden] {
+    display: none;
+}
+
+.yl-credits-line[hidden] {
+    display: none;
+}
+
+/* ─────────────────────────── Управление ─────────────────────────── */
+
+.yl-controls {
+    position: absolute;
+    left: 50%;
+    translate: -50% 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    z-index: 3;
+}
+
+#yl-overlay[data-controls-position='bottom'] .yl-controls {
+    bottom: 3cqh;
+}
+
+#yl-overlay[data-controls-position='top'] .yl-controls {
+    top: 2.5cqh;
+}
+
+.yl-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 42px;
+    height: 42px;
+    padding: 0 14px;
+    border: none;
+    border-radius: var(--yl-radius-pill);
+    background: var(--yl-material-bg);
+    backdrop-filter: var(--yl-material-filter);
+    -webkit-backdrop-filter: var(--yl-material-filter);
+    color: var(--yl-color-text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity var(--yl-dur-fast) var(--yl-ease-standard), scale 0.28s var(--yl-ease-out-back),
+        background-color var(--yl-dur-fast) var(--yl-ease-standard);
+}
+
+.yl-button:hover {
+    opacity: 1;
+    background: var(--yl-material-bg-strong);
+    scale: 1.06;
+}
+
+.yl-button:active {
+    scale: 0.94;
+}
+
+.yl-button svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    pointer-events: none;
+}
+
+.yl-button[aria-pressed='true'] {
+    background: rgba(255, 255, 255, 0.22);
+    opacity: 1;
+}
+
+.yl-button-label {
+    white-space: nowrap;
+}
+
+/*
+ * Сдвиг синхронизации: кнопки `−` и `+` с текущим значением между ними.
+ *
+ * Кнопки прижаты друг к другу и делят общую подложку — так группа читается как
+ * один регулятор, а не три отдельных элемента, и её видно издалека.
+ */
+.yl-offset {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 42px;
+    padding: 0 4px;
+    border-radius: var(--yl-radius-pill);
+    background: var(--yl-material-bg);
+    backdrop-filter: var(--yl-material-filter);
+    -webkit-backdrop-filter: var(--yl-material-filter);
+}
+
+/* Сдвиг есть — группа заметнее: иначе непонятно, почему текст «уехал». */
+.yl-offset[data-shifted='true'] {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.yl-offset .yl-button {
+    height: 34px;
+    min-width: 34px;
+    padding: 0 6px;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    opacity: 0.85;
+}
+
+.yl-offset .yl-button:hover {
+    background: rgba(255, 255, 255, 0.14);
+    scale: 1;
+}
+
+.yl-offset-value {
+    min-width: 4.4em;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    /* Цифры одинаковой ширины — значение не «дёргается» при пересчёте. */
+    font-variant-numeric: tabular-nums;
+    color: var(--yl-color-text-secondary);
+    cursor: default;
+}
+
+.yl-offset[data-shifted='true'] .yl-offset-value {
+    color: var(--yl-color-text-primary);
+}
+
+/*
+ * Плавающая кнопка открытия лирики.
+ *
+ * Живёт отдельно от панели плеера: панель — flex-строка фиксированной высоты,
+ * и любой вставленный в неё элемент растягивает ряд, выдавливая соседей вплоть
+ * до ползунка громкости. Позицию кнопка получает инлайном (её считает
+ * перетаскивание), поэтому здесь только внешний вид и поведение перетаска.
+ */
+.yl-floating-button {
+    position: fixed;
+    z-index: 2147483000;
+    background: var(--yl-material-bg-strong);
+    color: var(--yl-color-text-primary);
+    box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+    opacity: 0.9;
+    /* Тянуть за кнопку — жест, а не прокрутка и не выделение текста. */
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+}
+
+.yl-floating-button:hover {
+    opacity: 1;
+}
+
+.yl-floating-button[hidden] {
+    display: none;
+}
+
+.yl-floating-button.yl-dragging {
+    cursor: grabbing;
+    opacity: 1;
+    scale: 1.06;
+    /* Во время перетаскивания кнопка должна слушаться курсора, а не
+       доезжать до него с задержкой. */
+    transition: none;
+}
+
+.yl-floating-button svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    pointer-events: none;
+}
+
+/* ─────────────────── Простой текст без таймингов ─────────────────── */
+
+/* Таймингов нет: текст читается как обычная страница, караоке выключено. */
+.yl-scroll[data-synced='false'] {
+    overflow-y: auto;
+    mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 10%, #000 90%, transparent 100%);
+}
+
+.yl-lines[data-synced='false'] {
+    position: static;
+    padding: 8cqh 0;
+    transform: none !important;
+    transition: none !important;
+}
+
+/*
+ * Таймингов нет: караоке выключено, но текст показывается уже подсвеченным —
+ * ждать нечего, песня не «поёт» его по строчкам. Прокрутка здесь нативная:
+ * контейнер листается сам, transform не трогаем.
+ */
+.yl-lines[data-synced='false'] .yl-line {
+    background-image: none;
+    -webkit-text-fill-color: var(--yl-highlight);
+    color: var(--yl-highlight);
+    opacity: 1;
+    scale: 1;
+    filter: none;
+    cursor: default;
+    text-shadow: 0 0 12px rgba(255, 255, 255, 0.3), 0 0 34px rgba(255, 255, 255, 0.16);
+}
+
+/*
+ * Слова внутри обязаны гасить свой градиент вместе со строкой: без этого
+ * прозрачная заливка слова перебивала заливку строки, а позиция у слов без
+ * таймингов так и остаётся на «не спето» — весь простой текст выходил тёмным.
+ */
+.yl-lines[data-synced='false'] .yl-word {
+    background-image: none;
+    -webkit-text-fill-color: var(--yl-highlight);
+    color: var(--yl-highlight);
+    /* Яркость слов здесь задаётся цветом, а не прозрачностью: без сброса
+       пословная шкала приглушила бы весь простой текст. */
+    opacity: 1;
+}
+
+.yl-lines[data-synced='false'] .yl-line::before {
+    display: none;
+}
+
+/* Полоски прокрутки внутри оверлея не показываем: они выбиваются из
+   полноэкранного вида. Прокрутка при этом работает как обычно. */
+#yl-overlay,
+#yl-overlay * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+#yl-overlay ::-webkit-scrollbar,
+#yl-overlay::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+/* ─────────────────────────── Прочее ─────────────────────────── */
+
+#yl-overlay[data-font='system'] {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#yl-overlay.yl-scrolling .yl-line {
+    filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .yl-line,
+    .yl-word,
+    .yl-button,
+    .yl-bg-canvas {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
+}
