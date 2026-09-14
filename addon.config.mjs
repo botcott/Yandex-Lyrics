@@ -2,7 +2,7 @@ const addonConfig = {
     id: 'yandex-lyrics',
     directoryName: 'yandex-lyrics',
     name: 'Yandex-Lyrics',
-    description: 'Полноэкранное караоке-лирика, с использованием внешней библиотеки для подсветки звуков, букв',
+    description: 'Караоке-лирика с синхронизацией текста',
     version: '0.1.0',
     author: 'botcott',
     type: 'script',

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Полноэкранное караоке-лирика, с использованием внешней библиотеки для подсветки звуков, букв",
+  "description": "Караоке-лирика с синхронизацией текста",
   "scripts": {
     "dev": "node ./scripts/dev-build.mjs",
     "build": "vite build",
