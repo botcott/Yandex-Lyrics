@@ -14,5 +14,11 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "vite.config.ts", "addon.config.d.mts"]
+  "include": [
+    "src", 
+    "vite.config.ts", 
+    "addon.config.d.mts", 
+    "./LICENSE", 
+    "./README.md"
+  ]
 }

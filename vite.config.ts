@@ -64,6 +64,9 @@ function packagePulseSyncAddon() {
             await fs.mkdir(outDir, { recursive: true })
             await fs.cp(addonStaticDir, outDir, { recursive: true, force: true })
 
+            await fs.cp(path.resolve(rootDir, 'LICENSE'), path.resolve(outDir, 'LICENSE'), { force: true })
+            await fs.cp(path.resolve(rootDir, 'README.md'), path.resolve(outDir, 'README.md'), { force: true })
+
             await fs.writeFile(
                 path.join(outDir, 'metadata.json'),
                 JSON.stringify({ ...installed, ...createMetadata() }, null, 4) + '\n',
