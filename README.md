@@ -1,2 +1,2 @@
-![Скриншот 1](https://github.com/botcott/YandexLyrics/blob/main/addon/Assets/Images/screenshot1.png)
-![Скриншот 2](https://github.com/botcott/YandexLyrics/blob/main/addon/Assets/Images/screenshot2.png)
+![UI](https://github.com/botcott/YandexLyrics/blob/main/addon/Assets/Images/screenshot_ui.png)
+![BUTTON](https://github.com/botcott/YandexLyrics/blob/main/addon/Assets/Images/screenshot_button.png)
